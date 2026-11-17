@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Romario — Image and sound from the same score</title>
+<meta name="description" content="Romario — short audiovisual pieces exploring the synthetic connection between sound and nature. Image and sound from the same score.">
+<meta property="og:title" content="Romario — The sound of nature">
+<meta property="og:description" content="Short audiovisual pieces exploring the synthetic connection between sound and nature.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#e8e8e7">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Parkinsans:wght@300..800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#e8e8e7; --ink:#161616; --mute:#8d8d8b; --line:#c9c9c6;
+    --tile:min(150px,7.6vw,calc((100vh - 290px) / 4.4));
+    --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace; --sans:"Parkinsans","Helvetica Neue",Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);height:100%}
+  body{font-family:var(--mono);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  .mono{font-family:var(--mono);font-size:13px;letter-spacing:.14em;text-transform:uppercase}
+
+  /* top bar */
+  header{position:fixed;inset:0 0 auto 0;height:84px;display:flex;align-items:center;justify-content:space-between;padding:0 48px;z-index:40;pointer-events:none}
+  header>*{pointer-events:auto}
+  header{background:none}
+  .filters{display:flex;gap:34px}
+  .filters button{position:relative;color:var(--mute);transition:color .25s;padding:6px 0}
+  .filters button sup{font-size:9px;letter-spacing:.05em;margin-left:3px;vertical-align:5px}
+  .filters button::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--ink);transform:scaleX(0);transform-origin:left;transition:transform .45s cubic-bezier(.2,.7,.1,1)}
+  .filters button:hover{color:var(--ink)}
+  .filters button.on{color:var(--ink)}
+  .filters button.on::after{transform:scaleX(1)}
+
+  .sound{display:flex;align-items:center;gap:14px;height:40px;padding:0 16px 0 12px;border:1px solid var(--ink);border-radius:40px;transition:background .3s,color .3s}
+  .sound canvas{width:132px;height:26px;display:block}
+  .sound .state{min-width:92px;text-align:left}
+  .sound .dot{display:inline-block;width:7px;height:7px;border-radius:50%;border:1px solid currentColor;margin-right:8px;vertical-align:1px;transition:background .3s}
+  .sound.on .dot{background:currentColor}
+  .sound:hover{background:var(--ink);color:var(--bg)}
+  .hint{position:absolute;right:48px;top:70px;color:var(--mute);font-size:11px;letter-spacing:.14em;text-transform:uppercase;transition:opacity .6s}
+  .hint.gone{opacity:0;pointer-events:none}
+
+  /* the grid */
+  main{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:100px 48px 130px}
+  .grid{display:grid;grid-template-columns:repeat(8,var(--tile));column-gap:calc(var(--tile)*.5);row-gap:calc(var(--tile)*.34);justify-content:center}
+  .tile{width:var(--tile);cursor:pointer;transition:opacity .5s ease}
+  .tile.off{opacity:.14}
+  .tile.off.play{opacity:1}
+  .tile[hidden]{display:none}
+  .thumb{position:relative;width:var(--tile);height:calc(var(--tile) * 1.25);background:#141313;overflow:hidden}
+  .thumb img,.thumb video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  .thumb video{opacity:0;transition:opacity .35s}
+  .tile.play .thumb video{opacity:1}
+  .label{margin-top:12px;height:18px;text-align:center;font-size:13px;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap;overflow:visible}
+  .label .t{display:none}
+  .tile.play .label .c{display:none}
+  .tile.play .label .t{display:inline}
+  .grid.focus .tile:not(.play):not(.off){opacity:.5}
+  #mini{position:absolute;pointer-events:none;height:16px;opacity:0;transition:opacity .25s;z-index:5}
+  #mini.on{opacity:1}
+
+  /* bottom bar */
+  footer{position:fixed;inset:auto 0 0 0;height:104px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 48px;z-index:20;background:none}
+  .mark{font-family:var(--sans);font-weight:400;font-size:36px;letter-spacing:-.01em;line-height:1}
+  .tag{font-size:15px;letter-spacing:.14em;text-transform:uppercase;text-align:center}
+  nav{justify-self:end;display:flex;gap:34px}
+  nav button{font-family:var(--sans);font-weight:400;font-size:26px;letter-spacing:-.005em;position:relative}
+  nav button::after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:2px;background:var(--ink);transform:scaleX(0);transform-origin:left;transition:transform .4s cubic-bezier(.2,.7,.1,1)}
+  nav button:hover::after,nav button.on::after{transform:scaleX(1)}
+
+  /* detail + about */
+  .sheet{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;opacity:0;transition:opacity .35s}
+  .sheet.open{display:block}
+  .sheet.show{opacity:1}
+  .close{position:absolute;top:28px;right:48px;z-index:2}
+  .close:hover{text-decoration:underline;text-underline-offset:5px}
+  .work{height:100%;display:flex;align-items:center;justify-content:center;gap:72px;padding:80px 48px 60px}
+  .stage{position:relative;height:min(80vh,calc((100vw - 560px) * 1.25));aspect-ratio:4/5;background:#141313;cursor:pointer}
+  .stage video{width:100%;height:100%;display:block;object-fit:cover}
+  .bar{position:absolute;left:0;right:0;bottom:-14px;height:1px;background:var(--line)}
+  .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--ink);width:0}
+  .paused{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e8e8e7;opacity:0;transition:opacity .3s;pointer-events:none}
+  .stage.is-paused .paused{opacity:.85}
+  .info{width:380px;display:flex;flex-direction:column;gap:22px}
+  .info .code{color:var(--mute)}
+  .info h2{font-family:var(--sans);font-weight:400;font-size:46px;line-height:1.02;letter-spacing:-.015em}
+  .meta{display:grid;grid-template-columns:110px 1fr;row-gap:8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;border-top:1px solid var(--line);padding-top:16px}
+  .meta dt{color:var(--mute)}
+  .desc{font-family:var(--sans);font-size:17px;line-height:1.5;font-weight:300;max-width:36ch}
+  .scope{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0 8px}
+  .scope canvas{width:100%;height:92px;display:block}
+  .scope .ax{display:flex;justify-content:space-between;color:var(--mute);font-size:10px;letter-spacing:.12em;margin-top:6px}
+  .listen{display:none;align-self:flex-start;border:1px solid var(--ink);border-radius:30px;padding:9px 16px}
+  .listen.need{display:inline-block}
+  .listen:hover{background:var(--ink);color:var(--bg)}
+  .pn{display:flex;justify-content:space-between}
+  .pn button:hover{text-decoration:underline;text-underline-offset:5px}
+  #about{z-index:15}
+  body.in-about .filters,body.in-work .filters,body.in-work .hint{visibility:hidden}
+  #dCode,#dDesc,#listen{display:none!important}
+  #detail .close{right:auto;left:48px;top:42px;transform:translateY(-50%);line-height:1;height:40px;display:flex;align-items:center}
+  .scope{border-bottom:0!important}
+  .about{height:100%;overflow:auto}
+  .ab{position:relative;max-width:1320px;margin:0 auto;padding:96px 48px 200px;min-height:2000px}
+  .ab-top{display:grid;grid-template-columns:220px 1fr 220px;gap:48px;align-items:start}
+  .ab-lab{font-family:var(--sans);font-size:14px;letter-spacing:.04em;text-transform:uppercase}
+  .ab-head{font-family:var(--sans);font-size:14px;letter-spacing:.04em;text-transform:uppercase;text-align:center;margin-bottom:22px}
+  .ab-text{font-family:var(--mono);font-size:17px;line-height:1.5;letter-spacing:.01em;max-width:62ch;margin:0 auto}
+  .ab-text p+p{margin-top:1em}
+  .ab-side{font-family:var(--mono);font-size:12px;line-height:1.45}
+  .ab-side dl{margin-top:26px;display:grid;row-gap:10px}
+  .ab-side dt{color:var(--mute);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+  .me{margin-top:34px;width:200px;cursor:default}
+  .me .ph{position:relative;width:200px;height:200px;background:#000;overflow:hidden}
+  .me img{width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.05)}
+  .me canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+  .me .cap{margin-top:10px;text-align:center;font-size:12px;letter-spacing:.16em}
+  .dia{display:block;margin:70px auto 0;width:min(720px,100%);height:auto}
+  .fl{position:absolute;cursor:pointer;text-align:center}
+  .fl img{display:block;width:100%;height:auto;background:#141313}
+  .fl span{display:block;margin-top:8px;font-size:11px;letter-spacing:.16em}
+  .fl:hover span{text-decoration:underline;text-underline-offset:4px}
+  @media (max-width:1400px){:root{--tile:min(130px,9.6vw,calc((100vh - 300px) / 6))}.grid{grid-template-columns:repeat(6,var(--tile))}}
+  @media (max-width:1100px){.ab-top{grid-template-columns:1fr}.ab-head{text-align:left}.fl{display:none}.ab{min-height:0}}
+  @media (max-width:1000px){
+    :root{--tile:128px}.grid{grid-template-columns:repeat(4,var(--tile))}
+    header{padding:0 24px}.filters{gap:18px}.sound canvas{width:80px}
+    footer{padding:0 24px;grid-template-columns:1fr auto}.tag{display:none}
+    .work{flex-direction:column;gap:28px;padding:80px 24px 40px;overflow:auto;justify-content:flex-start}
+    .stage{height:auto;width:min(100%,520px)}.info{width:min(100%,520px)}
+  }
+  @media (max-width:640px){
+    :root{--tile:42vw}.grid{grid-template-columns:repeat(2,var(--tile));column-gap:6vw}
+    header{flex-direction:column;height:auto;padding:16px;gap:12px;align-items:flex-start}
+    .filters{flex-wrap:wrap;gap:6px 16px}.mono{font-size:11px}.hint{display:none}
+    main{padding:150px 16px 130px}.mark{font-size:26px}nav button{font-size:20px}
+    .ab{padding:150px 16px 160px;min-height:0}.fl{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="filters mono" id="filters">
+    <button data-f="all" class="on">All<sup id="n-all"></sup></button>
+    <button data-f="poetry">Poetry<sup id="n-poetry"></sup></button>
+    <button data-f="nature">Nature<sup id="n-nature"></sup></button>
+    <button data-f="symphony">Symphony<sup id="n-symphony"></sup></button>
+  </div>
+  <button class="sound mono" id="sound" aria-pressed="false" title="Sound on / off  (S)">
+    <canvas id="wave" width="264" height="52"></canvas>
+    <span class="state"><span class="dot"></span><span id="stateTxt">Sound off</span></span>
+  </button>
+</header>
+
+<main><div class="grid" id="grid"></div></main>
+<canvas id="mini"></canvas>
+
+<footer>
+  <div class="mark">Romario</div>
+  <div class="tag">The sound of nature</div>
+  <nav><button id="toAbout">About</button><button id="toWork" class="on">Work</button></nav>
+</footer>
+
+<section class="sheet" id="detail" aria-hidden="true">
+  <button class="close mono" id="closeD">Close ✕</button>
+  <div class="work">
+    <div class="stage" id="stage">
+      <video id="dv" playsinline loop preload="auto"></video>
+      <div class="paused mono">Paused</div>
+      <div class="bar"><i id="prog"></i></div>
+    </div>
+    <div class="info">
+      <div class="code mono" id="dCode"></div>
+      <h2 id="dTitle"></h2>
+      <dl class="meta" id="dMeta"></dl>
+      <p class="desc" id="dDesc"></p>
+      <button class="listen mono" id="listen">This piece is made to be heard — turn sound on</button>
+      <div class="scope"><canvas id="scope" width="760" height="184"></canvas><div class="ax mono"><span>Waveform · spectrum</span><span id="ax2">20 Hz — 16 kHz</span></div></div>
+      <div class="pn mono"><button id="prev">← Prev</button><button id="next">Next →</button></div>
+    </div>
+  </div>
+</section>
+
+<section class="sheet" id="about" aria-hidden="true">
+  <div class="about"><div class="ab">
+    <div class="ab-top">
+      <div>
+        <figure class="me" style="margin-top:0"><div class="ph"><img src="me.jpg" alt="Romario"><canvas id="mewave"></canvas></div><figcaption class="cap">ROM-0</figcaption></figure>
+      </div>
+      <div>
+        <div class="ab-head">Hi Noro, I'm Romario.</div>
+        <div class="ab-text">
+          <p>I'm a designer, trained in Digital Interaction Design at Politecnico di Milano.</p>
+          <p>In these pieces I explore the synthetic connection between sound and nature.</p>
+        </div>
+      </div>
+      <div class="ab-side">
+        <dl style="margin-top:0"><dt>Based</dt><dd>Near Milan, Italy</dd><dt>Studied</dt><dd>Digital Interaction Design, Politecnico di Milano</dd><dt>Works</dt><dd>16 pieces · 3 series</dd><dt>Listen</dt><dd>With headphones, loud</dd></dl>
+      </div>
+    </div>
+    <canvas class="dia" id="dia" width="720" height="1170"></canvas>
+    <div class="fl mono" data-w="sym6" style="left:2%;top:560px;width:120px"><img src="q/sym6.jpg" alt=""><span></span></div>
+    <div class="fl mono" data-w="nat1" style="left:6%;top:1000px;width:104px"><img src="q/nat1.jpg" alt=""><span></span></div>
+    <div class="fl mono" data-w="poe2" style="left:1%;top:1420px;width:128px"><img src="q/poe2.jpg" alt=""><span></span></div>
+    <div class="fl mono" data-w="sym9" style="right:1%;top:640px;width:136px"><img src="q/sym9.jpg" alt=""><span></span></div>
+    <div class="fl mono" data-w="sym1" style="right:6%;top:1180px;width:100px"><img src="q/sym1.jpg" alt=""><span></span></div>
+    <div class="fl mono" data-w="sym10" style="right:2%;top:1560px;width:116px"><img src="q/sym10.jpg" alt=""><span></span></div>
+  </div></div>
+</section>
+
+<script>
+const WORKS = [
+  {id:"poe2", code:"POE-1", cat:"poetry",   title:"Infinity", dur:"0:40", sound:"Waves, drones, bells", t:12,
+   desc:"William Blake, Auguries of Innocence. Sea, sand, a grain, a world, a flower, a galaxy, infinity, an hourglass — and the sea again, without a cut."},
+  {id:"nat1", code:"NAT-1", cat:"nature",   title:"Drop", dur:"0:40", sound:"Water, resonance", t:10,
+   desc:"Sometimes a drop makes a sound, sometimes it doesn't. In its reflection, worlds open."},
+  {id:"nat2", code:"NAT-2", cat:"nature",   title:"Fire", dur:"0:40", sound:"Crackle, roar, embers", t:10,
+   desc:"A flame that changes and becomes something you can hear."},
+  {id:"nat3", code:"NAT-3", cat:"nature",   title:"Stone", dur:"0:40", sound:"Struck stone, lithophone", t:10,
+   desc:"Every length, a note. Rock as the oldest instrument."},
+  {id:"nat4", code:"NAT-4", cat:"nature",   title:"Air", dur:"0:40", sound:"Wind, breath, whistles", t:10,
+   desc:"The invisible element, made visible by what it carries."},
+  {id:"nat5", code:"NAT-5", cat:"nature",   title:"Sand", dur:"0:40", sound:"Flutes, singing dunes", t:16,
+   desc:"Dunes, pyramids, a desert that sings. We gave the desert a shape to remember."},
+  {id:"nat6", code:"NAT-6", cat:"nature",   title:"Metal", dur:"0:40", sound:"Chimes, tuning forks", t:10,
+   desc:"Tinkling and vibration. Two arms: one pure note."},
+  {id:"nat7", code:"NAT-7", cat:"nature",   title:"Forest", dur:"0:40", sound:"Leaves, wood, birds", t:10,
+   desc:"Leaf, tree, forest. Ten thousand leaves: a voice."},
+  {id:"nat8", code:"NAT-8", cat:"nature",   title:"Light", dur:"0:40", sound:"Shimmer, hum, silence", t:6,
+   desc:"Sun, shadow and dark — what light sounds like when it arrives and when it leaves."},
+  {id:"sym1", code:"SYM-1", cat:"symphony", title:"Lightning", dur:"0:40", sound:"Thunder kick, crackle, singing arc", t:20,
+   desc:"A dance of lightning at 120 bpm. Every bolt falls on its beat; the riff is played by arcs jumping between eight points."},
+  {id:"sym3", code:"SYM-2", cat:"symphony", title:"Hurricane", dur:"0:40", sound:"Wind howl, whistles, gusts", t:22,
+   desc:"Seen from above. The spiral speeds up in steps on every kick; the eye blinks in time. Exactly ten turns, so the loop closes."},
+  {id:"sym5", code:"SYM-3", cat:"symphony", title:"Flute", dur:"0:40", sound:"Pan flute, bamboo, frame drum", t:22,
+   desc:"Pan and Syrinx: a reed bed in the wind becomes a pan flute. Long reed, low note; short reed, high note."},
+  {id:"sym6", code:"SYM-4", cat:"symphony", title:"Gong", dur:"0:40", sound:"Gamelan, bronze gongs", t:24,
+   desc:"Cymatics. Sand on a struck bronze disc gathers where the metal is still — twenty-six Chladni figures, one per stroke."},
+  {id:"sym7", code:"SYM-5", cat:"symphony", title:"Web", dur:"0:40", sound:"Violin, cello pizzicato", t:22,
+   desc:"A spider's web is made of strings. It is spun on long bows, then plucked and played like a violin."},
+  {id:"sym9", code:"SYM-6", cat:"symphony", title:"Snow", dur:"0:40", sound:"Piano", t:27,
+   desc:"Mist freezing into snow crystals, note by note. Low notes freeze the heart, high notes the tips; every chord, a new crystal."},
+  {id:"sym10",code:"SYM-7",cat:"symphony", title:"Ripples", dur:"0:40", sound:"Water, mallets, harp", t:22,
+   desc:"A stone touching water. Every touch is a note and a ring; the rhythm changes almost every bar, and the rings cross."},
+];
+const CAT = {paradox:"Paradox", poetry:"Poetry", nature:"Nature", symphony:"Symphony"};
+const $ = s => document.querySelector(s);
+const grid = $("#grid");
+
+/* ---------- sound engine ---------- */
+let ctx = null, master, analyser, tbuf, fbuf, soundOn = false;
+const srcs = new WeakMap();
+function ensureCtx(){
+  if (ctx) return;
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+  ctx = new AC(); master = ctx.createGain(); master.gain.value = 0;
+  analyser = ctx.createAnalyser(); analyser.fftSize = 2048; analyser.smoothingTimeConstant = .82;
+  master.connect(analyser); analyser.connect(ctx.destination);
+  tbuf = new Float32Array(analyser.fftSize); fbuf = new Uint8Array(analyser.frequencyBinCount);
+}
+function wire(v){                                  // route a video through the graph, once
+  if (!ctx) return null;
+  if (srcs.has(v)) return srcs.get(v);
+  try { const s = ctx.createMediaElementSource(v), g = ctx.createGain(); g.gain.value = 0; s.connect(g); g.connect(master); srcs.set(v, g); v.muted = false; return g; }
+  catch(e){ return null; }
+}
+function fade(v, to, sec){ const g = wire(v); if (!g) return; const t = ctx.currentTime; g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(to, t + sec); }
+function blip(f = 1200, d = .06, vol = .05){       // the interface makes small sounds too
+  if (!soundOn || !ctx) return;
+  const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
+  o.type = "sine"; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * .72, t + d);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .004); g.gain.exponentialRampToValueAtTime(.0001, t + d * 3);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + d * 3 + .05);
+}
+/* "want" is what the button shows; "soundOn" is whether the browser lets us play yet.
+   Browsers keep audio locked until the first click or key press, so the site opens showing
+   "Sound on" and starts playing at the first gesture anywhere on the page. */
+let want = true, unlocked = false;
+try { if (localStorage.getItem("snd") === "0") want = false; } catch(e){}
+function paint(){ $("#sound").classList.toggle("on", want); $("#sound").setAttribute("aria-pressed", want); $("#stateTxt").textContent = want ? "Sound on" : "Sound off"; }
+function setSound(on, remember = true){
+  want = on; paint();
+  if (remember) try { localStorage.setItem("snd", on ? "1" : "0"); } catch(e){}
+  if (on && !unlocked) return;                                   // waits for the first gesture
+  if (on){ ensureCtx(); if (!ctx) return; ctx.resume && ctx.resume(); }
+  soundOn = on;
+  if (ctx){ const t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value, t); master.gain.linearRampToValueAtTime(on ? 1 : 0, t + .35); }
+  document.querySelectorAll("video").forEach(v => { if (!v.paused && on) fade(v, 1, .4); });
+  if (on) setTimeout(() => blip(880, .07, .06), 60);
+}
+function unlock(e){
+  if (unlocked) return; unlocked = true;
+  ensureCtx(); if (ctx && ctx.resume) ctx.resume();
+  if (e.target.closest && e.target.closest("#sound")) return;     // the button's own click decides
+  if (want) setSound(true, false);
+}
+["pointerdown", "keydown", "touchstart"].forEach(ev => window.addEventListener(ev, unlock, {capture: true, passive: true}));
+$("#sound").addEventListener("click", () => { unlocked = true; setSound(!want); });
+paint();
+
+/* ---------- the grid ---------- */
+WORKS.forEach((w, i) => {
+  const el = document.createElement("div"); el.className = "tile"; el.dataset.cat = w.cat; el.dataset.i = i; el.tabIndex = 0;
+  el.innerHTML = `<div class="thumb"><img src="q/${w.id}.jpg" alt="${w.title}" loading="lazy"></div><div class="label"><span class="c">${w.code}</span><span class="t">${w.title}</span></div>`;
+  grid.appendChild(el);
+});
+["all","poetry","nature","symphony"].forEach(k => $("#n-" + k).textContent = k === "all" ? WORKS.length : WORKS.filter(w => w.cat === k).length);
+
+let hovered = null;
+function startPreview(el){
+  if (hovered === el) return; stopPreview();
+  hovered = el; const w = WORKS[+el.dataset.i]; let v = el.querySelector("video");
+  if (!v){ v = document.createElement("video"); v.src = `v/${w.id}.mp4`; v.loop = true; v.playsInline = true; v.muted = true; v.preload = "auto"; el.querySelector(".thumb").appendChild(v); v.currentTime = w.t; }
+  if (soundOn){ wire(v); }
+  v.play().then(() => { if (soundOn) fade(v, 1, .45); }).catch(()=>{});
+  el.classList.add("play"); grid.classList.add("focus");
+  blip(1500 + (+el.dataset.i % 5) * 180, .035, .025);
+}
+function stopPreview(){
+  if (!hovered) return; const el = hovered, v = el.querySelector("video"); hovered = null;
+  el.classList.remove("play"); grid.classList.remove("focus");
+  if (v){ if (srcs.has(v)) { fade(v, 0, .25); setTimeout(() => { if (hovered !== el) v.pause(); }, 280); } else v.pause(); }
+}
+grid.addEventListener("mouseover", e => { const el = e.target.closest(".tile"); if (el && matchMedia("(hover:hover)").matches) startPreview(el); });
+grid.addEventListener("mouseleave", stopPreview);
+grid.addEventListener("click", e => { const el = e.target.closest(".tile"); if (el) openWork(+el.dataset.i); });
+grid.addEventListener("keydown", e => { if (e.key === "Enter"){ const el = e.target.closest(".tile"); if (el) openWork(+el.dataset.i); } });
+grid.addEventListener("focusin", e => { const el = e.target.closest(".tile"); if (el) startPreview(el); });
+
+/* ---------- filters: the grid stays still, what doesn't belong steps back ---------- */
+let filter = "all";
+function applyFilter(f){
+  filter = f;
+  document.querySelectorAll("#filters button").forEach(b => b.classList.toggle("on", b.dataset.f === f));
+  blip(f === "all" ? 660 : f === "paradox" ? 1175 : f === "poetry" ? 990 : f === "nature" ? 784 : 587, .08, .06);
+  [...grid.children].forEach((t, k) => { t.style.transitionDelay = (k % 8) * 22 + Math.floor(k / 8) * 40 + "ms"; t.classList.toggle("off", !(f === "all" || t.dataset.cat === f)); });
+  setTimeout(() => [...grid.children].forEach(t => t.style.transitionDelay = ""), 900);
+  try { localStorage.setItem("flt", f); } catch(e){}
+}
+document.querySelectorAll("#filters button").forEach(b => b.addEventListener("click", () => applyFilter(b.dataset.f)));
+
+/* ---------- one work ---------- */
+let cur = -1;
+const dv = $("#dv"), detail = $("#detail"), about = $("#about");
+function visibleList(){ return WORKS.map((w, i) => i).filter(i => filter === "all" || WORKS[i].cat === filter); }
+function showSheet(s){ s.classList.add("open"); s.setAttribute("aria-hidden", "false"); requestAnimationFrame(() => s.classList.add("show")); }
+function hideSheet(s){ s.classList.remove("show"); s.setAttribute("aria-hidden", "true"); setTimeout(() => s.classList.remove("open"), 350); }
+function openWork(i, fromHash){
+  stopPreview(); cur = i; const w = WORKS[i];
+  $("#dCode").textContent = `${w.code} · ${CAT[w.cat]}`; $("#dTitle").textContent = w.title; $("#dDesc").textContent = w.desc;
+  $("#dMeta").innerHTML = `<dt>Duration</dt><dd>${w.dur} · loop</dd><dt>Sound</dt><dd>${w.sound}</dd><dt>Format</dt><dd>4:5 · generated in code</dd>`;
+  if (srcs.has(dv)) srcs.get(dv).gain.value = 0;
+  dv.src = `v/${w.id}.mp4`; dv.muted = !soundOn && !srcs.has(dv);
+  if (soundOn) wire(dv);
+  dv.play().then(() => { if (soundOn) fade(dv, 1, .5); }).catch(()=>{});
+  $("#stage").classList.remove("is-paused");
+  detail.querySelector(".work").scrollTop = 0; document.body.classList.add("in-work");
+  showSheet(detail); hideSheet(about); document.body.classList.remove("in-about"); $("#toAbout").classList.remove("on");
+  if (!fromHash) location.hash = w.code.toLowerCase();
+  if (!fromHash) blip(440, .12, .05);
+}
+function closeWork(){ document.body.classList.remove("in-work"); if (srcs.has(dv)) fade(dv, 0, .25); setTimeout(() => dv.pause(), 260); hideSheet(detail); cur = -1; location.hash = "work"; }
+function step(d){ const L = visibleList(); let k = L.indexOf(cur); k = (k + d + L.length) % L.length; openWork(L[k]); }
+$("#closeD").addEventListener("click", closeWork);
+$("#prev").addEventListener("click", () => step(-1)); $("#next").addEventListener("click", () => step(1));
+$("#stage").addEventListener("click", () => { if (dv.paused){ dv.play(); $("#stage").classList.remove("is-paused"); } else { dv.pause(); $("#stage").classList.add("is-paused"); } });
+dv.addEventListener("timeupdate", () => { $("#prog").style.width = (dv.currentTime / (dv.duration || 40) * 100) + "%"; });
+
+$("#toAbout").addEventListener("click", () => { if (cur >= 0) closeWork(); document.body.classList.add("in-about"); about.querySelector(".about").scrollTop = 0; showSheet(about); $("#toAbout").classList.add("on"); $("#toWork").classList.remove("on"); location.hash = "about"; blip(523, .1, .05); });
+function closeAbout(){ document.body.classList.remove("in-about"); hideSheet(about); $("#toAbout").classList.remove("on"); $("#toWork").classList.add("on"); location.hash = "work"; }
+document.querySelectorAll(".fl").forEach(el => { const i = WORKS.findIndex(w => w.id === el.dataset.w); el.querySelector("span").textContent = WORKS[i].code; el.addEventListener("click", () => openWork(i)); });
+$("#toWork").addEventListener("click", () => { if (cur >= 0) closeWork(); closeAbout(); window.scrollTo(0, 0); });
+
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "s" || e.key === "S") setSound(!want);
+  else if (e.key === "Escape"){ if (cur >= 0) closeWork(); else if (about.classList.contains("open")) closeAbout(); }
+  else if (cur >= 0 && e.key === "ArrowRight") step(1);
+  else if (cur >= 0 && e.key === "ArrowLeft") step(-1);
+  else if (cur >= 0 && e.key === " "){ e.preventDefault(); $("#stage").click(); }
+});
+function route(){
+  const h = location.hash.slice(1); const i = WORKS.findIndex(w => w.code.toLowerCase() === h);
+  if (i >= 0 && i !== cur) openWork(i, true);
+  else if (h === "about" && !about.classList.contains("open")) $("#toAbout").click();
+}
+window.addEventListener("hashchange", route);
+
+/* ---------- drawing the sound ---------- */
+function prep(c){ const r = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight; if (c.width !== Math.round(w * r)){ c.width = Math.round(w * r); c.height = Math.round(h * r); } const g = c.getContext("2d"); g.setTransform(r, 0, 0, r, 0, 0); return [g, w, h]; }
+function anyPlaying(){ return [...document.querySelectorAll("video")].some(v => !v.paused && srcs.has(v)); }
+let level = 0;
+function waveLine(g, w, h, amp, color, t, lw){
+  g.strokeStyle = color; g.lineWidth = lw || 1.4; g.beginPath();
+  const live = soundOn && ctx && anyPlaying();
+  if (live) analyser.getFloatTimeDomainData(tbuf);
+  const n = Math.max(48, Math.floor(w * 1.5));
+  for (let i = 0; i <= n; i++){
+    const x = i / n * w; let y;
+    if (live){ const k = Math.floor(i / n * (tbuf.length * .5)); y = tbuf[k] * amp * 3.2; }
+    else { const breathe = want ? 1 : .18; y = (Math.sin(i / n * Math.PI * 4 + t * 2.2) * .55 + Math.sin(i / n * Math.PI * 11 - t * 3.1) * .2) * amp * .35 * breathe * Math.sin(Math.PI * i / n); }
+    y = Math.max(-h / 2 + 1, Math.min(h / 2 - 1, y));
+    i ? g.lineTo(x, h / 2 + y) : g.moveTo(x, h / 2 + y);
+  }
+  g.stroke();
+}
+function frame(ts){
+  const t = ts / 1000, ink = getComputedStyle($("#sound")).color;
+  { const [g, w, h] = prep($("#wave")); g.clearRect(0, 0, w, h); waveLine(g, w, h, h * .9, ink, t); }
+  const mini = $("#mini");
+  if (hovered){
+    const r = hovered.getBoundingClientRect(); mini.style.left = (r.left + scrollX) + "px"; mini.style.top = (r.bottom + scrollY + 6) + "px"; mini.style.width = r.width + "px";
+    mini.classList.add("on"); const [g, w, h] = prep(mini); g.clearRect(0, 0, w, h); waveLine(g, w, h, h * .9, "#161616", t, 1);
+  } else mini.classList.remove("on");
+  if (detail.classList.contains("open")){
+    const [g, w, h] = prep($("#scope")); g.clearRect(0, 0, w, h);
+    const live = soundOn && ctx && anyPlaying();
+    g.fillStyle = "#161616";
+    const bins = 120;
+    if (live) analyser.getByteFrequencyData(fbuf);
+    for (let i = 0; i < bins; i++){
+      const f0 = 20 * Math.pow(800, i / bins), k = Math.min(fbuf ? fbuf.length - 1 : 0, Math.round(f0 / ((ctx ? ctx.sampleRate : 44100) / 2) * (fbuf ? fbuf.length : 1)));
+      const v = live ? fbuf[k] / 255 : (.04 + .03 * Math.sin(i * .35 + t * 2)) * (soundOn ? 1 : .5);
+      const bh = Math.max(1, v * h * .9), x = i / bins * w;
+      g.globalAlpha = .28; g.fillRect(x, h - bh, Math.max(1, w / bins - 2), bh);
+    }
+    g.globalAlpha = 1; waveLine(g, w, h, h * .8, "#161616", t, 1.4);
+  }
+  if (about.classList.contains("open")) drawAbout(t);
+  requestAnimationFrame(frame);
+}
+function liveLevel(){
+  if (!(soundOn && ctx && anyPlaying())) return 0;
+  analyser.getFloatTimeDomainData(tbuf); let s = 0; for (let i = 0; i < tbuf.length; i += 4) s += tbuf[i] * tbuf[i];
+  return Math.min(1, Math.sqrt(s / (tbuf.length / 4)) * 4);
+}
+let lvl = 0;
+function drawAbout(t){
+  lvl += (liveLevel() - lvl) * .25;
+  { const c = $("#mewave"); const [g, w, h] = prep(c); g.clearRect(0, 0, w, h); g.save(); g.translate(0, h * .14); waveLine(g, w, h, h * .5, "rgba(232,232,231,.85)", t, 1.2); g.restore(); }
+  const c = $("#dia"); const [g, w, h] = prep(c); g.clearRect(0, 0, w, h);
+  const k = w / 720; g.save(); g.scale(k, k);
+  const ink = "#161616", grey = "#6f6f6d";
+  g.strokeStyle = ink; g.fillStyle = ink; g.lineWidth = 2.4;
+  const serif = (sz) => `${sz}px Georgia, "Times New Roman", serif`;
+  function label(txt, x, y){ g.save(); g.fillStyle = grey; g.font = serif(12); g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(txt.toUpperCase().split("").join(String.fromCharCode(8202)), x, y); g.restore(); }
+  function box(x, y, bw, rows){ const rh = 48; g.strokeRect(x, y, bw, rh * rows.length + 10); rows.forEach((r, i) => { label(r, x + bw / 2, y + 29 + i * rh); if (i < rows.length - 1){ g.save(); g.lineWidth = 1.6; g.beginPath(); g.moveTo(x + 22, y + 53 + i * rh); g.lineTo(x + bw - 22, y + 53 + i * rh); g.stroke(); g.restore(); } }); return y + rh * rows.length + 10; }
+  function arrow(pts){ g.save(); g.lineWidth = 1.6; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke();
+    const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]], an = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    g.beginPath(); g.moveTo(b[0] - 11 * Math.cos(an - .5), b[1] - 11 * Math.sin(an - .5)); g.lineTo(b[0], b[1]); g.lineTo(b[0] - 11 * Math.cos(an + .5), b[1] - 11 * Math.sin(an + .5)); g.stroke(); g.restore(); }
+  // one flow, top to bottom: method -> where sound, nature and code meet -> one score -> the series; and back to the top
+  const X0 = 232, BW = 256, cx = 360;
+  const b1 = box(X0, 10, BW, ["Listen", "Write the score", "Bind every note", "Render", "Loop"]);          // ends at 260
+  const R = 118, D = 86, cy = b1 + 70 + R, cyC = cy + 132;
+  const br = (i) => R + lvl * 14 * Math.sin(t * 9 + i * 2.1) + Math.sin(t * 1.2 + i) * 1.2;
+  [[cx - D, cy], [cx + D, cy], [cx, cyC]].forEach((p, i) => { g.beginPath(); g.arc(p[0], p[1], br(i), 0, Math.PI * 2); g.stroke(); });
+  label("Sound", cx - D - 44, cy - 14); label("Nature", cx + D + 44, cy - 14); label("Code", cx, cyC + 58);
+  const top = cy - Math.sqrt(R * R - D * D);                                                      // where the two upper circles cross
+  arrow([[cx, b1], [cx, top - 4]]);
+  const b2y = cyC + R + 64;
+  arrow([[cx, cyC + R], [cx, b2y - 4]]);
+  const b2 = box(X0, b2y, BW, ["Image and sound", "from the same score"]);
+  const b3y = b2 + 60;
+  arrow([[cx, b2], [cx, b3y - 4]]);
+  const b3 = box(X0, b3y, BW, ["Poetry", "Nature", "Symphony"]);
+  const xr = X0 + BW + 120;
+  arrow([[X0 + BW, (b3y + b3) / 2], [xr, (b3y + b3) / 2], [xr, 135], [X0 + BW + 4, 135]]);
+  g.save(); g.translate(xr + 18, ((b3y + b3) / 2 + 135) / 2); g.rotate(-Math.PI / 2); label("about forty seconds, then again", 0, 0); g.restore();
+  g.restore();
+}
+requestAnimationFrame(frame);
+
+/* ---------- start ---------- */
+try { const f = localStorage.getItem("flt"); if (f && f !== "all") applyFilter(f); } catch(e){}
+[...grid.children].forEach((t, k) => t.animate([{opacity:0, transform:"translateY(10px)"}, {opacity:1, transform:"none"}], {duration:600, delay:200 + k * 28, easing:"cubic-bezier(.2,.7,.1,1)", fill:"backwards"}));
+route();
+</script>
+</body>
+</html>
