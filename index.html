@@ -135,7 +135,7 @@
     .work{flex-direction:column;gap:28px;padding:80px 24px 40px;overflow:auto;justify-content:flex-start}
     .stage{height:auto;width:min(100%,520px)}.info{width:min(100%,520px)}
   }
-  .ficon,.mmark{display:none}
+  .ficon,.mmark,.filters .fx{display:none}
   @media (max-width:640px){
     /* phone: name on top, a filter icon and a small sound button either side, one column of works */
     header{height:64px;padding:0 16px;justify-content:space-between}
@@ -144,9 +144,17 @@
     .ficon svg{width:16px;height:16px}
     .ficon.active::after{content:"";position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--ink)}
     .ficon.open{background:var(--ink);color:var(--bg)}
-    .filters{position:absolute;top:58px;left:16px;flex-direction:column;gap:14px;padding:16px 20px;background:var(--bg);border:1px solid var(--ink);opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .25s,transform .25s}
+    .ficon{z-index:2}
+    .filters{position:fixed;top:10px;left:10px;right:10px;flex-direction:column;align-items:flex-start;gap:4px;padding:72px 26px 26px;background:#fbfbf9;border-radius:22px;box-shadow:0 18px 50px rgba(0,0,0,.14),0 0 0 1px rgba(0,0,0,.04);opacity:0;transform:translateY(-8px) scale(.98);transform-origin:top left;pointer-events:none;transition:opacity .25s,transform .3s cubic-bezier(.2,.7,.1,1)}
     .filters.open{opacity:1;transform:none;pointer-events:auto}
-    .filters button{text-align:left;font-size:12px}
+    .filters button{font-family:var(--sans);text-transform:none;letter-spacing:-.015em;font-size:38px;line-height:1.18;color:var(--ink);padding:0;text-align:left}
+    .filters button::after{display:none}
+    .filters button.on{color:#9a9a97}
+    .filters button sup{font-family:var(--mono);font-size:11px;letter-spacing:.04em;vertical-align:18px;margin-left:5px;color:#9a9a97}
+    .filters .fx{display:block;align-self:stretch}
+    .filters .fx hr{border:0;border-top:1px solid #dcdcd8;margin:22px 0 18px}
+    .filters .fx small{display:block;font-family:var(--sans);font-size:13px;letter-spacing:.06em;color:#8d8d8b;margin-bottom:8px}
+    .filters .fx button{display:block;font-size:22px;line-height:1.55;color:var(--ink)!important}
     .sound{height:36px;padding:0 10px;gap:8px}
     .sound canvas{width:40px;height:20px}
     .sound .state{min-width:0}
@@ -179,6 +187,7 @@
     <button data-f="poetry">Poetry<sup id="n-poetry"></sup></button>
     <button data-f="nature">Nature<sup id="n-nature"></sup></button>
     <button data-f="symphony">Symphony<sup id="n-symphony"></sup></button>
+    <div class="fx"><hr><small>LISTEN</small><button id="fxSound" type="button">Sound off</button><button id="fxAbout" type="button">About</button></div>
   </div>
   <button class="sound mono" id="sound" aria-pressed="false" title="Sound on / off  (S)">
     <canvas id="wave" width="264" height="52"></canvas>
@@ -311,7 +320,7 @@ function blip(f = 1200, d = .06, vol = .05){       // the interface makes small 
    "Sound on" and starts playing at the first gesture anywhere on the page. */
 let want = true, unlocked = false;
 try { if (localStorage.getItem("snd") === "0") want = false; } catch(e){}
-function paint(){ $("#sound").classList.toggle("on", want); $("#sound").setAttribute("aria-pressed", want); $("#stateTxt").textContent = want ? "Sound on" : "Sound off"; }
+function paint(){ const fs = document.getElementById("fxSound"); if (fs) fs.textContent = want ? "Sound off" : "Sound on"; $("#sound").classList.toggle("on", want); $("#sound").setAttribute("aria-pressed", want); $("#stateTxt").textContent = want ? "Sound on" : "Sound off"; }
 function setSound(on, remember = true){
   want = on; paint();
   if (remember) try { localStorage.setItem("snd", on ? "1" : "0"); } catch(e){}
@@ -372,7 +381,9 @@ function applyFilter(f){
   $("#ficon").classList.toggle("active", f !== "all");
   try { localStorage.setItem("flt", f); } catch(e){}
 }
-document.querySelectorAll("#filters button").forEach(b => b.addEventListener("click", () => { applyFilter(b.dataset.f); toggleFilters(false); }));
+document.querySelectorAll("#filters button[data-f]").forEach(b => b.addEventListener("click", () => { applyFilter(b.dataset.f); toggleFilters(false); }));
+$("#fxSound").addEventListener("click", () => { unlocked = true; setSound(!want); });
+$("#fxAbout").addEventListener("click", () => { toggleFilters(false); $("#toAbout").click(); });
 function toggleFilters(open){ $("#filters").classList.toggle("open", open); $("#ficon").classList.toggle("open", open); $("#ficon").setAttribute("aria-expanded", open); }
 $("#ficon").addEventListener("click", e => { e.stopPropagation(); toggleFilters(!$("#filters").classList.contains("open")); });
 document.addEventListener("click", e => { if (!e.target.closest("#filters") && !e.target.closest("#ficon")) toggleFilters(false); });
